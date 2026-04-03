@@ -3,77 +3,80 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tinder Lite (Supabase)</title>
+    <title>Tinder Lite (Gallery Edition)</title>
     <style>
-        body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: white; text-align: center; }
-        .container { margin-top: 30px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 15px; max-width: 320px; margin: 20px auto; }
-        input { display: block; margin: 10px auto; padding: 10px; width: 230px; border-radius: 8px; border: none; }
-        button { padding: 10px 20px; border: none; border-radius: 10px; margin: 5px; cursor: pointer; transition: 0.3s; }
-        button:hover { opacity: 0.8; }
-        .like { background: #22c55e; color: white; font-size: 20px; }
-        .dislike { background: #ef4444; color: white; font-size: 20px; }
-        .main { background: #3b82f6; color: white; width: 250px; }
+        body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: white; text-align: center; }
+        .container { margin-top: 30px; padding: 10px; }
+        .card { background: #1e293b; padding: 20px; border-radius: 15px; max-width: 320px; margin: 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        input { display: block; margin: 10px auto; padding: 12px; width: 80%; max-width: 250px; border-radius: 8px; border: none; }
+        button { padding: 12px 24px; border: none; border-radius: 10px; margin: 10px 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:active { transform: scale(0.95); }
+        .like { background: #22c55e; color: white; font-size: 24px; width: 80px; }
+        .dislike { background: #ef4444; color: white; font-size: 24px; width: 80px; }
+        .main { background: #3b82f6; color: white; width: 90%; max-width: 270px; }
         .hidden { display: none; }
+        img { object-fit: cover; background: #334155; }
+        #file-label { display: block; margin: 10px; color: #94a3b8; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div class="container" id="auth">
-    <h1>Регистрация / Вход</h1>
-    <input id="email" type="email" placeholder="Email">
-    <input id="password" type="password" placeholder="Пароль">
-    <button class="main" onclick="authUser()">Войти / Создать аккаунт</button>
+    <h1>Tinder Lite</h1>
+    <p>Вход или Регистрация</p>
+    <input id="email" type="email" placeholder="Ваш Email">
+    <input id="password" type="password" placeholder="Пароль (мин. 6 знаков)">
+    <button class="main" onclick="authUser()">Войти / Создать</button>
 </div>
 
 <div class="container hidden" id="profile">
-    <h1>Ваш Профиль</h1>
-    <input id="name" placeholder="Ваше Имя">
-    <input id="photo" placeholder="Ссылка на фото (URL)">
-    <button class="main" onclick="saveProfile()">Сохранить и продолжить</button>
+    <h1>Создай профиль</h1>
+    <input id="name" placeholder="Твое Имя">
+    <label id="file-label">Выбери свое фото из галереи:</label>
+    <input id="photoInput" type="file" accept="image/*">
+    <button class="main" onclick="saveProfile()">Сохранить профиль</button>
 </div>
 
 <div class="container hidden" id="app">
-    <h2 id="count">Загрузка...</h2>
+    <h3 id="count">Загрузка пользователей...</h3>
     <div class="card">
         <h2 id="cardName">Имя</h2>
-        <img id="cardPhoto" src="" width="100%" style="border-radius:10px; min-height: 200px; background: #334155;">
+        <img id="cardPhoto" width="100%" height="300px" style="border-radius:10px;">
     </div>
-    <button class="like" onclick="likeUser()">❤️</button> 
     <button class="dislike" onclick="nextUser()">❌</button>
+    <button class="like" onclick="likeUser()">❤️</button>
 
-    <div id="matchBox" class="hidden" style="color: #fbbf24; font-weight: bold;">
-        <h2>🔥 МАТЧ!</h2>
-        <p>Вы понравились друг другу</p>
+    <div id="matchBox" class="hidden" style="color: #fbbf24; margin-top: 15px;">
+        <h2>🔥 ЭТО МАТЧ!</h2>
+        <p>Вы понравились друг другу!</p>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-// Твои ключи доступа
-const URL_SB = "https://irutsdtnngzzlpqvgcya.supabase.co";
-const KEY_SB = "sb_publishable_gexGOb4gk5nifvmqOJzH9g_IP2kZWfR";
+// ТВОИ ДАННЫЕ
+const SB_URL = "https://irutsdtnngzzlpqvgcya.supabase.co";
+const SB_KEY = "sb_publishable_gexGOb4gk5nifvmqOJzH9g_IP2kZWfR";
 
-// Инициализируем клиент под другим именем, чтобы не было ошибки
-const db = supabase.createClient(URL_SB, KEY_SB);
+// Исправленная инициализация
+const db = supabase.createClient(SB_URL, SB_KEY);
 
 let currentUser;
 let usersList = [];
 let currentIndex = 0;
 
-// Функция входа
+// 1. АВТОРИЗАЦИЯ
 async function authUser() {
-    const email = v("email");
-    const password = v("password");
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
 
-    if (!email || !password) return alert("Заполните все поля");
+    if (!email || !password) return alert("Заполни поля!");
 
-    // Пытаемся войти
     let { data, error } = await db.auth.signInWithPassword({ email, password });
 
     if (error) {
-        // Если ошибка входа, пробуем зарегистрировать
+        // Если не вошли, пробуем создать аккаунт
         let res = await db.auth.signUp({ email, password });
         if (res.error) return alert("Ошибка: " + res.error.message);
         currentUser = res.data.user;
@@ -81,46 +84,60 @@ async function authUser() {
     } else {
         currentUser = data.user;
     }
-
     show("profile");
 }
 
-// Сохранение профиля в таблицу
+// 2. СОХРАНЕНИЕ С ФОТО ИЗ ГАЛЕРЕИ
 async function saveProfile() {
-    const name = v("name");
-    const photo = v("photo");
+    const name = document.getElementById("name").value;
+    const fileInput = document.getElementById("photoInput");
+    const file = fileInput.files[0];
 
-    if (!name || !photo) return alert("Заполните данные профиля");
+    if (!name || !file) return alert("Нужно имя и фото!");
 
-    const { error } = await db.from("profiles").upsert({
-        id: currentUser.id,
-        name: name,
-        photo: photo
-    });
-
-    if (error) {
-        console.error(error);
-        alert("Ошибка при сохранении. Проверь таблицу 'profiles' в Supabase");
-    } else {
-        loadApp();
+    // Если фото слишком большое (больше 2МБ), лучше предупредить
+    if (file.size > 2 * 1024 * 1024) {
+        alert("Фото слишком тяжелое. Попробуй другое или сделай скриншот.");
+        return;
     }
+const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async function () {
+        const base64Photo = reader.result;
+
+        const { error } = await db.from("profiles").upsert({
+            id: currentUser.id,
+            name: name,
+            photo: base64Photo
+        });
+
+        if (error) {
+            console.error(error);
+            alert("Ошибка сохранения в базу!");
+        } else {
+            loadApp();
+        }
+    };
 }
 
-// Загрузка приложения
+// 3. ЗАГРУЗКА ЛЮДЕЙ
 async function loadApp() {
     show("app");
     let { data, error } = await db.from("profiles").select("*");
     
     if (error) return console.log(error);
     
-    // Исключаем себя из списка
+    // Показываем всех, кроме себя
     usersList = data.filter(u => u.id !== currentUser.id);
     
-    document.getElementById("count").innerText = "Пользователей рядом: " + usersList.length;
+    document.getElementById("count").innerText = "Людей рядом: " + usersList.length;
     showUser();
-}function showUser() {
+}
+
+function showUser() {
     if (usersList.length === 0) {
-        document.getElementById("cardName").innerText = "Никого нет :(";
+        document.getElementById("cardName").innerText = "Пока никого нет";
+        document.getElementById("cardPhoto").src = "";
         return;
     }
     let u = usersList[currentIndex];
@@ -135,20 +152,20 @@ function nextUser() {
     showUser();
 }
 
-// Лайк и проверка на взаимность
+// 4. ЛАЙКИ
 async function likeUser() {
     if (usersList.length === 0) return;
-    let targetUser = usersList[currentIndex];
+    let target = usersList[currentIndex];
 
     await db.from("likes").insert({
         liker_id: currentUser.id,
-        liked_id: targetUser.id
+        liked_id: target.id
     });
 
-    // Проверяем, лайкал ли он нас
+    // Проверка на взаимность
     let { data } = await db.from("likes")
         .select("*")
-        .eq("liker_id", targetUser.id)
+        .eq("liker_id", target.id)
         .eq("liked_id", currentUser.id);
 
     if (data && data.length > 0) {
@@ -158,14 +175,11 @@ async function likeUser() {
     }
 }
 
-// Вспомогательные функции
+// Утилиты
 function show(id) {
     ["auth", "profile", "app"].forEach(x => document.getElementById(x).classList.add("hidden"));
     document.getElementById(id).classList.remove("hidden");
 }
-
-function v(id) { return document.getElementById(id).value; }
 </script>
-
 </body>
 </html>

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tinder Lite (Supabase)</title>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #0f172a; color: white; text-align: center; }
+        .container { margin-top: 30px; }
+        .card { background: #1e293b; padding: 20px; border-radius: 15px; max-width: 320px; margin: 20px auto; }
+        input { display: block; margin: 10px auto; padding: 10px; width: 230px; border-radius: 8px; border: none; }
+        button { padding: 10px 20px; border: none; border-radius: 10px; margin: 5px; cursor: pointer; transition: 0.3s; }
+        button:hover { opacity: 0.8; }
+        .like { background: #22c55e; color: white; font-size: 20px; }
+        .dislike { background: #ef4444; color: white; font-size: 20px; }
+        .main { background: #3b82f6; color: white; width: 250px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container" id="auth">
+    <h1>Регистрация / Вход</h1>
+    <input id="email" type="email" placeholder="Email">
+    <input id="password" type="password" placeholder="Пароль">
+    <button class="main" onclick="authUser()">Войти / Создать аккаунт</button>
+</div>
+
+<div class="container hidden" id="profile">
+    <h1>Ваш Профиль</h1>
+    <input id="name" placeholder="Ваше Имя">
+    <input id="photo" placeholder="Ссылка на фото (URL)">
+    <button class="main" onclick="saveProfile()">Сохранить и продолжить</button>
+</div>
+
+<div class="container hidden" id="app">
+    <h2 id="count">Загрузка...</h2>
+    <div class="card">
+        <h2 id="cardName">Имя</h2>
+        <img id="cardPhoto" src="" width="100%" style="border-radius:10px; min-height: 200px; background: #334155;">
+    </div>
+    <button class="like" onclick="likeUser()">❤️</button> 
+    <button class="dislike" onclick="nextUser()">❌</button>
+
+    <div id="matchBox" class="hidden" style="color: #fbbf24; font-weight: bold;">
+        <h2>🔥 МАТЧ!</h2>
+        <p>Вы понравились друг другу</p>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+// Твои ключи доступа
+const URL_SB = "https://irutsdtnngzzlpqvgcya.supabase.co";
+const KEY_SB = "sb_publishable_gexGOb4gk5nifvmqOJzH9g_IP2kZWfR";
+
+// Инициализируем клиент под другим именем, чтобы не было ошибки
+const db = supabase.createClient(URL_SB, KEY_SB);
+
+let currentUser;
+let usersList = [];
+let currentIndex = 0;
+
+// Функция входа
+async function authUser() {
+    const email = v("email");
+    const password = v("password");
+
+    if (!email || !password) return alert("Заполните все поля");
+
+    // Пытаемся войти
+    let { data, error } = await db.auth.signInWithPassword({ email, password });
+
+    if (error) {
+        // Если ошибка входа, пробуем зарегистрировать
+        let res = await db.auth.signUp({ email, password });
+        if (res.error) return alert("Ошибка: " + res.error.message);
+        currentUser = res.data.user;
+        alert("Аккаунт создан!");
+    } else {
+        currentUser = data.user;
+    }
+
+    show("profile");
+}
+
+// Сохранение профиля в таблицу
+async function saveProfile() {
+    const name = v("name");
+    const photo = v("photo");
+
+    if (!name || !photo) return alert("Заполните данные профиля");
+
+    const { error } = await db.from("profiles").upsert({
+        id: currentUser.id,
+        name: name,
+        photo: photo
+    });
+
+    if (error) {
+        console.error(error);
+        alert("Ошибка при сохранении. Проверь таблицу 'profiles' в Supabase");
+    } else {
+        loadApp();
+    }
+}
+
+// Загрузка приложения
+async function loadApp() {
+    show("app");
+    let { data, error } = await db.from("profiles").select("*");
+    
+    if (error) return console.log(error);
+    
+    // Исключаем себя из списка
+    usersList = data.filter(u => u.id !== currentUser.id);
+    
+    document.getElementById("count").innerText = "Пользователей рядом: " + usersList.length;
+    showUser();
+}function showUser() {
+    if (usersList.length === 0) {
+        document.getElementById("cardName").innerText = "Никого нет :(";
+        return;
+    }
+    let u = usersList[currentIndex];
+    document.getElementById("cardName").innerText = u.name;
+    document.getElementById("cardPhoto").src = u.photo;
+    document.getElementById("matchBox").classList.add("hidden");
+}
+
+function nextUser() {
+    if (usersList.length === 0) return;
+    currentIndex = (currentIndex + 1) % usersList.length;
+    showUser();
+}
+
+// Лайк и проверка на взаимность
+async function likeUser() {
+    if (usersList.length === 0) return;
+    let targetUser = usersList[currentIndex];
+
+    await db.from("likes").insert({
+        liker_id: currentUser.id,
+        liked_id: targetUser.id
+    });
+
+    // Проверяем, лайкал ли он нас
+    let { data } = await db.from("likes")
+        .select("*")
+        .eq("liker_id", targetUser.id)
+        .eq("liked_id", currentUser.id);
+
+    if (data && data.length > 0) {
+        document.getElementById("matchBox").classList.remove("hidden");
+    } else {
+        nextUser();
+    }
+}
+
+// Вспомогательные функции
+function show(id) {
+    ["auth", "profile", "app"].forEach(x => document.getElementById(x).classList.add("hidden"));
+    document.getElementById(id).classList.remove("hidden");
+}
+
+function v(id) { return document.getElementById(id).value; }
+</script>
+
+</body>
+</html>
